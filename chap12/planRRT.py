@@ -26,7 +26,7 @@ class planRRT():
         self.map_size = PLAN.city_width
         self.world_view = world_view
         self.pts = []
-        self.num_paths = 3
+        self.num_paths = 1
         self.path_options = []
         self.cost_options = []
 
@@ -103,9 +103,11 @@ class planRRT():
         if self.node_iteration % 20 == 0:
             rand_N = self.end.item(0)
             rand_E = self.end.item(1)
+            rand_D = self.end.item(2)
         else:
             rand_N = np.random.uniform(-self.map_size/2.,self.map_size/2.)
             rand_E = np.random.uniform(-self.map_size/2.,self.map_size/2.)
+            rand_D = np.random.uniform(0,-100)
 
         # calculate closest point
         closest = np.inf*np.ones((2,1))
@@ -119,7 +121,7 @@ class planRRT():
         chi = np.arctan2(rand_E-self.tree[parent].NED[1],rand_N-self.tree[parent].NED[0])
         N = self.segmentLength*np.cos(chi)+self.tree[parent].NED[0]
         E = self.segmentLength*np.sin(chi)+self.tree[parent].NED[1]
-        D = self.pd
+        D = rand_D
 
         # check for collisions
         if self.checkValidity(np.array([N,E,D]),self.tree[parent].NED):
@@ -129,7 +131,7 @@ class planRRT():
 
                 N = self.end[0]
                 E = self.end[1]
-                D = self.end[2]
+                D = 0
                 goal = True
                 # calculate cost of line
                 cost = np.linalg.norm(self.end-self.tree[parent].NED)
@@ -146,11 +148,28 @@ class planRRT():
             # return None if there is collision
             return None
 
+    # Distance based collision checker
     def checkValidity(self,pt1,pt2):
+        # Create an 1-D array of equally spaced points between 0 & 1.
+        # segmentLength = 50 i.e. 50 equally spaced points are generated.
         percent = np.linspace(0.0,1.0,int(self.segmentLength))
-        points = (np.outer(percent,pt1) + np.outer((1.0-percent),pt2))
+
+        # Outer product of matrices "percent" and "pt1" to generate,
+        # equally spaced points in 3-D.
+        outer1 = np.outer(percent,pt1) 
+        outer2 = np.outer((1.0-percent),pt2) # Similarly for outer2.
+
+        # Adding both the outer products to generate final matrix,
+        # containing points equally spaced between pt1 and pt2, 
+        # i.e. between new node and the closest node in tree.
+        points = (outer1 + outer2)
+
+        # Looping through the points and the obstacle to find collision.
         for ii in range(points.shape[0]):
             for jj in range(self.obstacles.shape[0]):
+                # If distance between the obstacle and the point is less,
+                # than clearance (i.e. 2*building_width) then there is a collision
+                # and return False for Validity of the point.
                 if np.linalg.norm(self.obstacles[jj,:]-points[ii,0:2]) < self.clearance:
                     return False
         return True
@@ -215,6 +234,7 @@ class planRRT():
         # desired down position is down position of end node
         self.pd = wpp_end.item(2)
         self.end = wpp_end
+        # segmentLength is the 'D' distance
         self.segmentLength = 3.0*min_radius
 
         # create Tree class of start node
@@ -279,9 +299,11 @@ class planRRT():
         if self.node_iteration % 20 == 0:
             rand_N = self.end.item(0)
             rand_E = self.end.item(1)
+            rand_D = self.end.item(2)
         else:
             rand_N = np.random.uniform(-self.map_size/2.,self.map_size/2.)
             rand_E = np.random.uniform(-self.map_size/2.,self.map_size/2.)
+            rand_D = np.random.uniform(0, -100)
 
         # calculate closest point
         closest = np.inf*np.ones((2,1))
@@ -295,7 +317,7 @@ class planRRT():
         chi = np.arctan2(rand_E-self.tree[parent].NED[1],rand_N-self.tree[parent].NED[0])
         N = self.segmentLength*np.cos(chi)+self.tree[parent].NED[0]
         E = self.segmentLength*np.sin(chi)+self.tree[parent].NED[1]
-        D = self.pd
+        D = rand_D
 
         ps = np.array([self.tree[parent].NED]).T
         chis = self.tree[parent].chi
@@ -315,7 +337,7 @@ class planRRT():
 
                 N = self.end[0]
                 E = self.end[1]
-                D = self.end[2]
+                D = 0
                 goal = True
                 # calculate cost of line
                 cost = self.dubins_path.length
